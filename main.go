@@ -3,16 +3,19 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"kasir-api/database"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
-type Product struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Price int    `json:"price"`
-	Stock int    `json:"stock"`
+type Config struct {
+	Port   string `mapstructure:"PORT"`
+	DBConn string `mapstructure:"DB_CONN"`
 }
 
 type Category struct {
@@ -215,6 +218,25 @@ func updateCategory(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if _, err := os.Stat(".env"); err == nil {
+		viper.SetConfigFile(".env")
+		_ = viper.ReadInConfig()
+	}
+
+	config := Config{
+		Port:   viper.GetString("PORT"),
+		DBConn: viper.GetString("DB_CONN"),
+	}
+
+	db, err := database.InitDB(config.DBConn)
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer db.Close()
+
 	// GET Product
 	// POST Product
 	http.HandleFunc("/api/product", func(w http.ResponseWriter, r *http.Request) {
@@ -270,9 +292,10 @@ func main() {
 		})
 	})
 
-	fmt.Println("Server running on localhost:8080")
+	addr := "0.0.0.0:" + config.Port
+	fmt.Println("Server running on ", addr)
 
-	err := http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(addr, nil)
 	if err != nil {
 		fmt.Println("Failed to run server")
 	}
